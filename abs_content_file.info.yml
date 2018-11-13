@@ -1,0 +1,11 @@
+name: 'abs-content-file'
+description: 'Save rendered node to static file'
+package: 'ABS'
+
+type: module
+core: 8.x
+
+project: 'abs'
+
+dependencies:
+  - node

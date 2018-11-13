@@ -1,0 +1,14 @@
+{
+  "name": "drupal/abs_content_file",
+  "type": "drupal-module",
+  "description": "My Awesome Module",
+  "keywords": ["Drupal"],
+  "license": "GPL-2.0+",
+  "homepage": "https://www.drupal.org/project/abs_content_file",
+  "minimum-stability": "dev",
+  "support": {
+    "issues": "https://www.drupal.org/project/issues/abs_content_file",
+    "source": "http://cgit.drupalcode.org/abs_content_file"
+  },
+  "require": { }
+}
