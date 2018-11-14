@@ -10,5 +10,8 @@
     "issues": "https://www.drupal.org/project/issues/abs_content_file",
     "source": "http://cgit.drupalcode.org/abs_content_file"
   },
-  "require": { }
+  "require": { 
+  	"drupal/pathauto": "^1.1",
+  	"aws/aws-sdk-php": "^3.0@dev"
+  }
 }

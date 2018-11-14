@@ -5,11 +5,15 @@
  * Contains abs_content_file.module.
  */
 
+//require 'vendor/autoload.php'; //../../../
+
 use Drupal\Core\Routing\RouteMatchInterface;
-/*use Drupal\Core\Entity\EntityInterface;
-use Drupal\Core\Entity\ContentEntityInterface;*/
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\node\NodeInterface;
 use Drupal\file\FileInterface;
+use Aws\S3\S3Client;
+
 
 /**
  * Implements hook_help().
@@ -27,61 +31,67 @@ function abs_content_file_help($route_name, RouteMatchInterface $route_match) {
   }
 }
 
-function abs_content_file_node_update(NodeInterface $node){//(EntityInterface $entity){
+function abs_content_file_node_presave(EntityInterface $entity){ //_update
 
+	\Drupal::logger('content_file')->notice('hook_entity_presave: '. var_export($entity->getEntityTypeId(), true));
 
-	\Drupal::logger('content_file')->notice('hasField: ' . var_export($node->hasField('field_save_to_file'), true));
+	if($entity->getEntityTypeId() == 'node'){
 
-	if($node->hasField('field_save_to_file')){
-		\Drupal::logger('content_file')->notice(var_export($node->get('field_save_to_file')->getValue(), true));	
-	}
-	
+		\Drupal::logger('content_file')->notice('hasField: ' . var_export($entity->hasField('field_save_to_file'), true));
 
-	//check that it has a field_save_to_file
-	//and is checked
-	
-	if($node->hasField('field_save_to_file') && $node->get('field_save_to_file')->getValue() == true){
+		if($entity->hasField('field_save_to_file')){
+			\Drupal::logger('content_file')->notice(var_export($entity->get('field_save_to_file')->getValue(), true));	
+		}
+		
+		//check that it has a field_save_to_file
+		//and is checked
+		if($entity->hasField('field_save_to_file') && $entity->get('field_save_to_file')->getValue() == true && $entity->hasField('field_s3_file')){
 
-		\Drupal::logger('content_file')->notice('hook_node_update: '. var_export($node->getEntityTypeId(), true));
+			\Drupal::logger('content_file')->notice('hook_node_update: '. var_export($entity->getEntityTypeId(), true));
 
-		//render its html
-		$nodeTypeId = $node->getEntityTypeId();
+			//render its html
+			$nodeTypeId = $entity->getEntityTypeId();
 
-		$view_builder = \Drupal::entityManager()->getViewBuilder($nodeTypeId);
- 		
-/*		$view_modes = Drupal::entityQuery('entity_view_mode')
-  			->condition('targetEntityType', 'node')
-  			->execute();
+			$view_builder = \Drupal::entityManager()->getViewBuilder($nodeTypeId);
+	 		
+	  		$view_mode = 'default';
 
-  		drupal_set_message('view_modes: ' . var_export($view_modes));*/
+			$build = $view_builder->view($entity, $view_mode, $entity->language()->getId());
 
-/*  		if(array_search('template', $view_modes) !== false){
-  			$view_mode = 'template'; //$node->getSetting('view_mode');	
-  		} else {
-  			$view_mode = 'default';
-  		}	*/
+			$rendered = drupal_render($build);
 
-  		$view_mode = 'default';
+			$rendered = '<template>' . $rendered . '</template>';
 
-		$build = $view_builder->view($node, $view_mode, $node->language()->getId());
+			//if the node specifies a filename, use that
+			if($entity->hasField('field_filename') && $entity->get('field_filename')->getValue() != null ){
+				$filename = $entity->get('field_filename')->getValue();
+			} elseif($entity->getTitle() != '') {
+				$title = $entity->getTitle();
+				$filename = \Drupal::service('pathauto.alias_cleaner')->cleanString($title);
+			} else {
+				$filename = $entity->id();	
+			}
+			$filename .= '.html';
 
-		$rendered = drupal_render($build);
+			//get the destination from the field settings
+			$fileField = $entity->field_s3_file;
 
-		$rendered = '<template>' . $rendered . '</template>';
+			$fileSettings = $fileField->getDataDefinition()->getSettings();
+			$destination = $fileSettings['uri_scheme'] . '://' 
+				. $fileSettings['file_directory'] . '/' . $filename; 
 
-		//if the node specifies a filename, use that
-		if($node->hasField('field_filename') && $node->get('field_filename')->getValue() != null ){
-			$filename = $node->get('field_filename')->getValue();
-		} elseif($node->getTitle() != '') {
-			$title = $node->getTitle();
-			$filename = \Drupal::service('pathauto.alias_cleaner')->cleanString($title);
-		} else {
-			$filename = $node->id();	
+			//save the file, replacing if it already exists in the drupal file system
+			$file = file_save_data($rendered, $destination, FILE_EXISTS_REPLACE);
+
+			//reference the file in the file field to push to S3
+			$violations = $fileField->appendItem($file)->validate();
+
+			if(count($violations)) {
+				drupal_set_message('error saving file');
+			}
+
 		}
 
-		$destination = file_default_scheme() . '://' . $filename . '.html';
-		//save it to a file
-		file_save_data($rendered, $destination, FILE_EXISTS_REPLACE);
 	}
 	
 }
